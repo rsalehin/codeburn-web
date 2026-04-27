@@ -129,3 +129,22 @@ export async function removeModelAlias(from: string) {
         body: JSON.stringify({ from }),
     });
 }
+
+export async function updateApiKey(key: string) {
+    await fetch('/api/settings/api-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: key }),
+    });
+}
+
+// Advisor
+export async function fetchAdvisor(query: string): Promise<string> {
+    const res = await fetch('/api/advisor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return res.text();
+}

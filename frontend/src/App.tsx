@@ -3,6 +3,7 @@ import Dashboard from './pages/Dashboard';
 import Optimize from './pages/Optimize';
 import Compare from './pages/Compare';
 import Settings from './pages/Settings';
+import Advisor from './pages/Advisor';
 
 function App() {
     return (
@@ -12,12 +13,14 @@ function App() {
                 <Link to="/" className="text-muted hover:text-text text-sm">Dashboard</Link>
                 <Link to="/optimize" className="text-muted hover:text-text text-sm">Optimize</Link>
                 <Link to="/compare" className="text-muted hover:text-text text-sm">Compare</Link>
+                <Link to="/advisor" className="text-muted hover:text-text text-sm">Advisor</Link>
                 <Link to="/settings" className="text-muted hover:text-text text-sm">Settings</Link>
             </nav>
             <Routes>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/optimize" element={<Optimize />} />
                 <Route path="/compare" element={<Compare />} />
+                <Route path="/advisor" element={<Advisor />} />
                 <Route path="/settings" element={<Settings />} />
             </Routes>
         </div>

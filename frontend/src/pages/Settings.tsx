@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchSettings, updatePlan, updateCurrency, addModelAlias, removeModelAlias } from '../lib/api';
+import { fetchSettings, updatePlan, updateCurrency, addModelAlias, removeModelAlias, updateApiKey } from '../lib/api';
 
 const PLANS = ['none', 'claude_pro', 'claude_max', 'cursor_pro', 'custom'];
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY', 'AUD', 'CAD', 'CHF', 'CNY', 'SEK', 'NZD', 'MXN', 'SGD', 'HKD', 'NOK', 'KRW', 'TRY', 'RUB', 'INR', 'BRL', 'ZAR'];
@@ -29,12 +29,43 @@ export default function Settings() {
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['settings'] }),
     });
 
+    const apiKeyMutation = useMutation({
+        mutationFn: (key: string) => updateApiKey(key),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['settings'] }),
+    });
+
     const [newAliasFrom, setNewAliasFrom] = useState('');
     const [newAliasTo, setNewAliasTo] = useState('');
+    const [apiKeyInput, setApiKeyInput] = useState('');
+    const [showKey, setShowKey] = useState(false);
 
     return (
         <div className="p-6 max-w-lg mx-auto space-y-8">
             <h1 className="text-xl font-semibold">Settings</h1>
+
+            {/* API Key for Advisor */}
+            <section>
+                <h2 className="text-sm text-muted mb-2">Claude API Key (for Advisor)</h2>
+                <div className="flex gap-2 items-center">
+                    <input
+                        type={showKey ? 'text' : 'password'}
+                        placeholder="sk-ant-..."
+                        value={apiKeyInput}
+                        onChange={e => setApiKeyInput(e.target.value)}
+                        className="flex-1 bg-surface border border-border rounded px-3 py-1.5 text-sm text-text"
+                    />
+                    <button onClick={() => setShowKey(!showKey)} className="text-xs text-muted hover:text-text">
+                        {showKey ? 'Hide' : 'Show'}
+                    </button>
+                    <button
+                        onClick={() => apiKeyMutation.mutate(apiKeyInput)}
+                        className="bg-primary text-white text-sm px-3 py-1.5 rounded hover:opacity-90"
+                    >
+                        Save
+                    </button>
+                </div>
+                <p className="text-xs text-muted mt-1">Stored only in server memory for the session.</p>
+            </section>
 
             {/* Plan */}
             <section>

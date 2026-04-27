@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { fileURLToPath } from 'url';
+import Anthropic from '@anthropic-ai/sdk';
 import db from './db.js';
 import { scanProvider } from './scanner.js';
 import { buildDashboardData } from './aggregator.js';
@@ -196,6 +197,7 @@ app.get('/api/settings', (_req, res) => {
         monthlyUsd: settings.get('monthlyUsd') || 0,
         currency: settings.get('currency') || 'USD',
         modelAliases: settings.get('modelAliases') || {},
+        hasApiKey: !!settings.get('apiKey'),
     });
 });
 
@@ -236,6 +238,12 @@ app.delete('/api/settings/model-alias', (req, res) => {
     res.json({ ok: true, aliases });
 });
 
+app.post('/api/settings/api-key', (req, res) => {
+    const { apiKey } = req.body;
+    settings.set('apiKey', apiKey);
+    res.json({ ok: true });
+});
+
 app.get('/api/export', async (req, res) => {
     const format = (req.query.format as string) || 'json';
     const provider = (req.query.provider as string) || 'all';
@@ -257,6 +265,77 @@ app.get('/api/export', async (req, res) => {
             res.setHeader('Content-Disposition', 'attachment; filename=codeburn-report.json');
             res.json(dashboard);
         }
+    } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        res.status(500).json({ error: message });
+    }
+});
+
+// ---------- ADVISOR ----------
+app.post('/api/advisor', async (req, res) => {
+    const apiKey = settings.get('apiKey');
+    if (!apiKey) {
+        res.status(400).json({ error: 'No API key set. Go to Settings to add your Claude API key.' });
+        return;
+    }
+
+    const { query } = req.body;
+    if (!query || typeof query !== 'string') {
+        res.status(400).json({ error: 'query required' });
+        return;
+    }
+
+    try {
+        const provider = 'all';
+        const projects = await scanProvider(provider);
+        const dashboard = buildDashboardData(projects);
+        const optimize = await scanAndDetect(projects);
+
+        const dataSnapshot = JSON.stringify({
+            overview: dashboard.overview,
+            daily: dashboard.daily,
+            models: dashboard.models,
+            activities: dashboard.activities,
+            projects: dashboard.projects,
+            wasteFindings: optimize.findings.map(f => ({
+                title: f.title,
+                impact: f.impact,
+                tokensSaved: f.tokensSaved,
+                explanation: f.explanation,
+            })),
+            healthGrade: optimize.healthGrade,
+            healthScore: optimize.healthScore,
+            plan: settings.get('plan') || 'none',
+            currency: settings.get('currency') || 'USD',
+        }, null, 2);
+
+        const anthropic = new Anthropic({ apiKey });
+        const msg = await anthropic.messages.create({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 1500,
+            system: `You are a cost‑optimization advisor for AI coding assistants. You have access to a user's real session data — costs, categories, one‑shot rates, model breakdowns, waste findings, and project summaries.
+
+Your job:
+- Answer the user's question using only the data provided.
+- Give specific, actionable advice with dollar amounts where possible.
+- Compare activities, models, projects, or days to find inefficiencies.
+- Show trends, patterns, and potential savings.
+- Always quantify your advice: "...would save you $X/month" or "this represents Y% of your total."
+- If waste findings exist, reference them explicitly.
+- Keep answers concise but data‑rich (bullet points are fine).
+- If the question is outside the data's scope, say so honestly.
+
+Current data snapshot:
+${dataSnapshot}`,
+            messages: [{ role: 'user', content: query }],
+        });
+
+        const text = msg.content
+            .filter(block => block.type === 'text')
+            .map(block => (block as any).text)
+            .join('\n');
+
+        res.type('text/plain').send(text);
     } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         res.status(500).json({ error: message });
