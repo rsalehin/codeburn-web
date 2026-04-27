@@ -3,8 +3,10 @@ import cors from 'cors';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { globSync } from 'fast-glob';
-import db from './db';
+import { fileURLToPath } from 'url';
+import db from './db.js';
+import { scanProvider } from './scanner.js';
+import { buildDashboardData } from './aggregator.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -21,13 +23,12 @@ app.get('/api/db-test', (_req, res) => {
     res.json({ sessionsInDB: count, dbStatus: 'connected' });
 });
 
-// Provider detection endpoint
 app.get('/api/providers', (_req, res) => {
     const home = os.homedir();
     const providerDefs = [
         { id: 'claude', name: 'Claude (VS Code)', paths: [
             path.join(home, '.claude', 'projects'),
-            path.join(home, 'AppData', 'Roaming', 'Claude', 'projects'), // Windows fallback
+            path.join(home, 'AppData', 'Roaming', 'Claude', 'projects'),
         ]},
         { id: 'codex', name: 'Codex (VS Code)', paths: [
             path.join(home, '.codex', 'sessions'),
@@ -55,11 +56,10 @@ app.get('/api/providers', (_req, res) => {
                 foundPath = p;
                 try {
                     if (p.endsWith('.vscdb')) {
-                        // SQLite database, count later
-                        sessions = -1; // indicate complex counting
+                        sessions = -1;
                     } else {
-                        const files = globSync('**/*.jsonl', { cwd: p, absolute: false });
-                        sessions = files.length;
+                        const allFiles = fs.readdirSync(p, { recursive: true, encoding: 'utf8' });
+                        sessions = allFiles.filter(f => f.endsWith('.jsonl')).length;
                     }
                 } catch {}
                 break;
@@ -75,6 +75,41 @@ app.get('/api/providers', (_req, res) => {
     });
 
     res.json({ providers: result });
+});
+
+app.get('/api/scan/:provider', async (req, res) => {
+    const provider = req.params.provider;
+    try {
+        const projects = await scanProvider(provider);
+        res.json({ provider, projects });
+    } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        res.status(500).json({ error: message });
+    }
+});
+
+app.get('/api/report', async (req, res) => {
+    const provider = (req.query.provider as string) || 'all';
+    const project = req.query.project as string | undefined;
+    const from = req.query.from as string | undefined;
+    const to = req.query.to as string | undefined;
+
+    try {
+        const dateRange = from || to ? {
+            start: from ? new Date(from) : new Date(0),
+            end: to ? new Date(to) : new Date(),
+        } : undefined;
+
+        let projects = await scanProvider(provider);
+        if (project) {
+            projects = projects.filter(p => p.project === project);
+        }
+        const dashboard = buildDashboardData(projects);
+        res.json(dashboard);
+    } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        res.status(500).json({ error: message });
+    }
 });
 
 app.listen(PORT, () => {
