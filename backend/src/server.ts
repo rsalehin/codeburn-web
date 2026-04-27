@@ -17,6 +17,9 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
+// ---------- Settings store (in-memory for now, DB later) ----------
+const settings = new Map<string, any>();
+
 app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
@@ -98,11 +101,6 @@ app.get('/api/report', async (req, res) => {
     const to = req.query.to as string | undefined;
 
     try {
-        const dateRange = from || to ? {
-            start: from ? new Date(from) : new Date(0),
-            end: to ? new Date(to) : new Date(),
-        } : undefined;
-
         let projects = await scanProvider(provider);
         if (project) {
             projects = projects.filter(p => p.project === project);
@@ -142,7 +140,6 @@ app.get('/api/optimize', async (req, res) => {
     }
 });
 
-// Compare endpoint – model A vs model B
 app.get('/api/compare', async (req, res) => {
     const provider = (req.query.provider as string) || 'all';
     const modelA = req.query.model_a as string;
@@ -176,6 +173,83 @@ app.get('/api/compare', async (req, res) => {
             categoryComparison: categoryCompare,
             workingStyle,
         });
+    } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        res.status(500).json({ error: message });
+    }
+});
+
+// ---------- Settings endpoints ----------
+
+app.get('/api/settings', (_req, res) => {
+    res.json({
+        plan: settings.get('plan') || 'none',
+        monthlyUsd: settings.get('monthlyUsd') || 0,
+        currency: settings.get('currency') || 'USD',
+        modelAliases: settings.get('modelAliases') || {},
+    });
+});
+
+app.post('/api/settings/plan', (req, res) => {
+    const { plan, monthlyUsd } = req.body;
+    settings.set('plan', plan);
+    if (monthlyUsd !== undefined) settings.set('monthlyUsd', monthlyUsd);
+    res.json({ ok: true });
+});
+
+app.post('/api/settings/currency', (req, res) => {
+    const { currency } = req.body;
+    if (!currency || typeof currency !== 'string' || currency.length !== 3) {
+        res.status(400).json({ error: 'Invalid currency code' });
+        return;
+    }
+    settings.set('currency', currency.toUpperCase());
+    res.json({ ok: true, currency: currency.toUpperCase() });
+});
+
+app.post('/api/settings/model-alias', (req, res) => {
+    const { from, to } = req.body;
+    if (!from || !to) {
+        res.status(400).json({ error: 'from and to required' });
+        return;
+    }
+    const aliases = settings.get('modelAliases') || {};
+    aliases[from] = to;
+    settings.set('modelAliases', aliases);
+    res.json({ ok: true, aliases });
+});
+
+app.delete('/api/settings/model-alias', (req, res) => {
+    const { from } = req.body;
+    const aliases = settings.get('modelAliases') || {};
+    delete aliases[from];
+    settings.set('modelAliases', aliases);
+    res.json({ ok: true, aliases });
+});
+
+// ---------- Export endpoint ----------
+
+app.get('/api/export', async (req, res) => {
+    const format = (req.query.format as string) || 'json';
+    const provider = (req.query.provider as string) || 'all';
+
+    try {
+        const projects = await scanProvider(provider);
+        const dashboard = buildDashboardData(projects);
+
+        if (format === 'csv') {
+            const rows = [
+                ['date', 'cost', 'calls'],
+                ...dashboard.daily.map(d => [d.date, d.cost.toString(), d.calls.toString()])
+            ];
+            const csv = rows.map(r => r.join(',')).join('\n');
+            res.setHeader('Content-Type', 'text/csv');
+            res.setHeader('Content-Disposition', 'attachment; filename=codeburn-costs.csv');
+            res.send(csv);
+        } else {
+            res.setHeader('Content-Disposition', 'attachment; filename=codeburn-report.json');
+            res.json(dashboard);
+        }
     } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         res.status(500).json({ error: message });
