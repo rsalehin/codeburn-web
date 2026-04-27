@@ -8,6 +8,7 @@ import db from './db.js';
 import { scanProvider } from './scanner.js';
 import { buildDashboardData } from './aggregator.js';
 import { scanAndDetect } from './core/optimize.js';
+import { aggregateModelStats, computeComparison, computeCategoryComparison, computeWorkingStyle } from './core/compare-stats.js';
 import type { DateRange } from './core/types.js';
 
 const app = express();
@@ -134,6 +135,46 @@ app.get('/api/optimize', async (req, res) => {
             healthGrade: result.healthGrade,
             sessionsAnalyzed: projects.reduce((s, p) => s + p.sessions.length, 0),
             projectsAnalyzed: projects.length,
+        });
+    } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        res.status(500).json({ error: message });
+    }
+});
+
+// Compare endpoint – model A vs model B
+app.get('/api/compare', async (req, res) => {
+    const provider = (req.query.provider as string) || 'all';
+    const modelA = req.query.model_a as string;
+    const modelB = req.query.model_b as string;
+
+    if (!modelA || !modelB) {
+        res.status(400).json({ error: 'model_a and model_b query params required' });
+        return;
+    }
+
+    try {
+        const projects = await scanProvider(provider);
+        const stats = aggregateModelStats(projects);
+        const a = stats.find(s => s.model === modelA);
+        const b = stats.find(s => s.model === modelB);
+
+        if (!a || !b) {
+            const models = stats.map(s => s.model);
+            res.status(404).json({ error: 'Model not found', availableModels: models });
+            return;
+        }
+
+        const comparison = computeComparison(a, b);
+        const categoryCompare = computeCategoryComparison(projects, modelA, modelB);
+        const workingStyle = computeWorkingStyle(projects, modelA, modelB);
+
+        res.json({
+            modelA: { model: a.model, calls: a.calls, totalCost: a.totalCost },
+            modelB: { model: b.model, calls: b.calls, totalCost: b.totalCost },
+            comparison,
+            categoryComparison: categoryCompare,
+            workingStyle,
         });
     } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
