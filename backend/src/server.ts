@@ -9,6 +9,7 @@ import { scanProvider } from './scanner.js';
 import { buildDashboardData } from './aggregator.js';
 import { scanAndDetect } from './core/optimize.js';
 import { aggregateModelStats, computeComparison, computeCategoryComparison, computeWorkingStyle } from './core/compare-stats.js';
+import { switchCurrency, convertCost } from './core/currency.js';
 import type { DateRange } from './core/types.js';
 
 const app = express();
@@ -17,7 +18,6 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// ---------- Settings store (in-memory for now, DB later) ----------
 const settings = new Map<string, any>();
 
 app.get('/api/health', (_req, res) => {
@@ -106,7 +106,18 @@ app.get('/api/report', async (req, res) => {
             projects = projects.filter(p => p.project === project);
         }
         const dashboard = buildDashboardData(projects);
-        res.json(dashboard);
+
+        const currency = settings.get('currency') || 'USD';
+        if (currency !== 'USD') {
+            await switchCurrency(currency);
+            dashboard.overview.totalCost = convertCost(dashboard.overview.totalCost);
+            dashboard.daily = dashboard.daily.map(d => ({ ...d, cost: convertCost(d.cost) }));
+            dashboard.models = dashboard.models.map(m => ({ ...m, cost: convertCost(m.cost) }));
+            dashboard.activities = dashboard.activities.map(a => ({ ...a, cost: convertCost(a.cost) }));
+            dashboard.projects = dashboard.projects.map(p => ({ ...p, cost: convertCost(p.cost) }));
+        }
+
+        res.json({ ...dashboard, currency, plan: settings.get('plan') || 'none' });
     } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         res.status(500).json({ error: message });
@@ -179,8 +190,6 @@ app.get('/api/compare', async (req, res) => {
     }
 });
 
-// ---------- Settings endpoints ----------
-
 app.get('/api/settings', (_req, res) => {
     res.json({
         plan: settings.get('plan') || 'none',
@@ -226,8 +235,6 @@ app.delete('/api/settings/model-alias', (req, res) => {
     settings.set('modelAliases', aliases);
     res.json({ ok: true, aliases });
 });
-
-// ---------- Export endpoint ----------
 
 app.get('/api/export', async (req, res) => {
     const format = (req.query.format as string) || 'json';

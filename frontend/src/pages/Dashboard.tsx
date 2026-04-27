@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { fetchReport } from '../lib/api';
+import { fetchReport, fetchSettings } from '../lib/api';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 export default function Dashboard() {
@@ -8,6 +8,13 @@ export default function Dashboard() {
         queryFn: () => fetchReport('claude'),
         refetchInterval: 30_000,
     });
+
+    const { data: settings } = useQuery({
+        queryKey: ['settings'],
+        queryFn: fetchSettings,
+    });
+
+    const currencySymbol = settings?.currency || 'USD';
 
     if (isLoading) return <div className="p-6">Loading…</div>;
     if (error) return <div className="p-6 text-red-400">Failed to load data</div>;
@@ -19,7 +26,10 @@ export default function Dashboard() {
             <div className="grid grid-cols-3 gap-4">
                 <div className="bg-surface border border-border rounded-lg p-4">
                     <div className="text-muted text-sm">Total Cost</div>
-                    <div className="text-2xl font-semibold mt-1">${data.overview.totalCost.toFixed(2)}</div>
+                    <div className="text-2xl font-semibold mt-1">
+                        {currencySymbol === 'USD' ? '$' : currencySymbol + ' '}
+                        {data.overview.totalCost.toFixed(2)}
+                    </div>
                 </div>
                 <div className="bg-surface border border-border rounded-lg p-4">
                     <div className="text-muted text-sm">API Calls</div>
@@ -33,7 +43,7 @@ export default function Dashboard() {
 
             {/* Daily Chart */}
             <div className="bg-surface border border-border rounded-lg p-4">
-                <h2 className="text-base font-medium mb-3">Daily Cost</h2>
+                <h2 className="text-base font-medium mb-3">Daily Cost ({currencySymbol})</h2>
                 <ResponsiveContainer width="100%" height={240}>
                     <BarChart data={data.daily}>
                         <XAxis dataKey="date" stroke="#8e8e93" fontSize={12} />
@@ -64,7 +74,10 @@ export default function Dashboard() {
                             {data.models.map(m => (
                                 <tr key={m.model} className="border-b border-border/50">
                                     <td className="py-1.5">{m.model}</td>
-                                    <td className="text-right">${m.cost.toFixed(2)}</td>
+                                    <td className="text-right">
+                                        {currencySymbol === 'USD' ? '$' : currencySymbol + ' '}
+                                        {m.cost.toFixed(2)}
+                                    </td>
                                     <td className="text-right">{m.calls}</td>
                                 </tr>
                             ))}
@@ -87,7 +100,10 @@ export default function Dashboard() {
                             {data.activities.map(a => (
                                 <tr key={a.category} className="border-b border-border/50">
                                     <td className="py-1.5">{a.category}</td>
-                                    <td className="text-right">${a.cost.toFixed(2)}</td>
+                                    <td className="text-right">
+                                        {currencySymbol === 'USD' ? '$' : currencySymbol + ' '}
+                                        {a.cost.toFixed(2)}
+                                    </td>
                                     <td className="text-right">
                                         <span className={
                                             a.oneShotRate >= 0.9 ? 'text-green-400' :
