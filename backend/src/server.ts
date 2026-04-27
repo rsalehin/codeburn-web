@@ -313,7 +313,7 @@ app.post('/api/advisor', async (req, res) => {
         const msg = await anthropic.messages.create({
             model: 'claude-sonnet-4-20250514',
             max_tokens: 1500,
-            system: `You are a cost‑optimization advisor for AI coding assistants. You have access to a user's real session data — costs, categories, one‑shot rates, model breakdowns, waste findings, and project summaries.
+            system: `You are a cost-optimization advisor for AI coding assistants. You have access to a user's real session data - costs, categories, one-shot rates, model breakdowns, waste findings, and project summaries.
 
 Your job:
 - Answer the user's question using only the data provided.
@@ -322,7 +322,7 @@ Your job:
 - Show trends, patterns, and potential savings.
 - Always quantify your advice: "...would save you $X/month" or "this represents Y% of your total."
 - If waste findings exist, reference them explicitly.
-- Keep answers concise but data‑rich (bullet points are fine).
+- Keep answers concise but data-rich (bullet points are fine).
 - If the question is outside the data's scope, say so honestly.
 
 Current data snapshot:
