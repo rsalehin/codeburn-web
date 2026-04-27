@@ -1,0 +1,24 @@
+{
+    "name": "codeburn-web-backend",
+    "version": "0.1.0",
+    "private": true,
+    "scripts": {
+        "dev": "tsx watch src/server.ts",
+        "build": "tsc",
+        "start": "node dist/server.js"
+    },
+    "dependencies": {
+        "express": "^5.1.0",
+        "cors": "^2.8.5",
+        "better-sqlite3": "^11.8.0",
+        "pg": "^8.14.0"
+    },
+    "devDependencies": {
+        "@types/express": "^5.0.1",
+        "@types/cors": "^2.8.17",
+        "@types/better-sqlite3": "^7.6.12",
+        "@types/node": "^22.14.0",
+        "tsx": "^4.19.0",
+        "typescript": "~5.8.0"
+    }
+}
