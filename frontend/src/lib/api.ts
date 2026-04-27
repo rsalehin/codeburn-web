@@ -83,3 +83,49 @@ export async function fetchCompare(
     if (!res.ok) throw new Error(await res.text());
     return res.json();
 }
+
+// Settings types
+export interface SettingsData {
+    plan: string;
+    monthlyUsd: number;
+    currency: string;
+    modelAliases: Record<string, string>;
+}
+
+export async function fetchSettings(): Promise<SettingsData> {
+    const res = await fetch('/api/settings');
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+}
+
+export async function updatePlan(plan: string, monthlyUsd?: number) {
+    await fetch('/api/settings/plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan, monthlyUsd }),
+    });
+}
+
+export async function updateCurrency(currency: string) {
+    await fetch('/api/settings/currency', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currency }),
+    });
+}
+
+export async function addModelAlias(from: string, to: string) {
+    await fetch('/api/settings/model-alias', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from, to }),
+    });
+}
+
+export async function removeModelAlias(from: string) {
+    await fetch('/api/settings/model-alias', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from }),
+    });
+}
