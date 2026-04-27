@@ -1,11 +1,14 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchReport, fetchSettings } from '../lib/api';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 export default function Dashboard() {
+    const [provider, setProvider] = useState('claude');
+
     const { data, isLoading, error } = useQuery({
-        queryKey: ['report', 'claude'],
-        queryFn: () => fetchReport('claude'),
+        queryKey: ['report', provider],
+        queryFn: () => fetchReport(provider),
         refetchInterval: 30_000,
     });
 
@@ -16,12 +19,49 @@ export default function Dashboard() {
 
     const currencySymbol = settings?.currency || 'USD';
 
+    const exportCsv = () => {
+        if (!data) return;
+        const rows = [
+            ['date', 'cost', 'calls'],
+            ...data.daily.map(d => [d.date, d.cost.toString(), d.calls.toString()])
+        ];
+        const csv = rows.map(r => r.join(',')).join('\n');
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'codeburn-costs.csv';
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
     if (isLoading) return <div className="p-6">Loading…</div>;
     if (error) return <div className="p-6 text-red-400">Failed to load data</div>;
     if (!data) return null;
 
     return (
         <div className="p-6 space-y-8 max-w-6xl mx-auto">
+            {/* Top bar: provider selector + export */}
+            <div className="flex items-center justify-between">
+                <select
+                    value={provider}
+                    onChange={e => setProvider(e.target.value)}
+                    className="bg-surface border border-border rounded px-3 py-1.5 text-sm text-text"
+                >
+                    <option value="claude">Claude (VS Code)</option>
+                    <option value="codex">Codex</option>
+                    <option value="cursor">Cursor</option>
+                    <option value="copilot">Copilot</option>
+                    <option value="opencode">OpenCode</option>
+                </select>
+                <button
+                    onClick={exportCsv}
+                    className="bg-primary text-white text-sm px-4 py-1.5 rounded hover:opacity-90"
+                >
+                    Export CSV
+                </button>
+            </div>
+
             {/* Overview */}
             <div className="grid grid-cols-3 gap-4">
                 <div className="bg-surface border border-border rounded-lg p-4">
