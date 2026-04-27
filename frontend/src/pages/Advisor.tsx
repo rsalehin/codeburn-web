@@ -3,6 +3,7 @@ import { useMutation } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { fetchAdvisor } from '../lib/api';
+import { useAdvisor } from '../lib/AdvisorContext';
 
 function MarkdownRenderer({ content }: { content: string }) {
     return (
@@ -58,12 +59,12 @@ function MarkdownRenderer({ content }: { content: string }) {
 
 export default function Advisor() {
     const [query, setQuery] = useState('');
-    const [qa, setQA] = useState<{ question: string; answer: string }[]>([]);
+    const { qa, addQA } = useAdvisor();
 
     const mutation = useMutation({
         mutationFn: (q: string) => fetchAdvisor(q),
         onSuccess: (text, question) => {
-            setQA(prev => [...prev, { question, answer: text }]);
+            addQA({ question, answer: text });
             setQuery('');
         },
     });
@@ -72,7 +73,7 @@ export default function Advisor() {
         <div className="p-6 max-w-3xl mx-auto space-y-6">
             <h1 className="text-xl font-semibold">Cost Advisor</h1>
             <p className="text-muted text-sm">
-                Ask anything about your spending, efficiency, or waste — Claude answers with specifics from your data.
+                Ask anything about your spending, efficiency, or waste. Claude answers with specifics from your data.
             </p>
 
             {/* Input area */}
@@ -94,7 +95,7 @@ export default function Advisor() {
                     disabled={mutation.isPending || !query.trim()}
                     className="bg-primary text-white text-sm px-4 py-2 rounded hover:opacity-90 disabled:opacity-50"
                 >
-                    {mutation.isPending ? 'Thinking…' : 'Ask'}
+                    {mutation.isPending ? 'Thinking...' : 'Ask'}
                 </button>
             </div>
 
@@ -123,7 +124,7 @@ export default function Advisor() {
                     <div className="bg-surface border border-border rounded-lg p-4">
                         <div className="flex items-center gap-2 text-muted text-sm">
                             <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
-                            Analyzing your data…
+                            Analyzing your data...
                         </div>
                     </div>
                 )}
