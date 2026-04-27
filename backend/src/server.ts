@@ -7,6 +7,8 @@ import { fileURLToPath } from 'url';
 import db from './db.js';
 import { scanProvider } from './scanner.js';
 import { buildDashboardData } from './aggregator.js';
+import { scanAndDetect } from './core/optimize.js';
+import type { DateRange } from './core/types.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -106,6 +108,33 @@ app.get('/api/report', async (req, res) => {
         }
         const dashboard = buildDashboardData(projects);
         res.json(dashboard);
+    } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        res.status(500).json({ error: message });
+    }
+});
+
+app.get('/api/optimize', async (req, res) => {
+    const provider = (req.query.provider as string) || 'all';
+    const from = req.query.from as string | undefined;
+    const to = req.query.to as string | undefined;
+
+    try {
+        const dateRange: DateRange | undefined = from || to ? {
+            start: from ? new Date(from) : new Date(0),
+            end: to ? new Date(to) : new Date(),
+        } : undefined;
+
+        const projects = await scanProvider(provider);
+        const result = await scanAndDetect(projects, dateRange);
+        res.json({
+            findings: result.findings,
+            costRate: result.costRate,
+            healthScore: result.healthScore,
+            healthGrade: result.healthGrade,
+            sessionsAnalyzed: projects.reduce((s, p) => s + p.sessions.length, 0),
+            projectsAnalyzed: projects.length,
+        });
     } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         res.status(500).json({ error: message });
